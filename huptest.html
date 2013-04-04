@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- Test page for interacting with the hup jquery plugin for file reading and uploading. See below for
+the various events that are fired by the plugin. -->
+<html>
+<head>
+    <title>huptest</title>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script type="text/javascript" src="./hup.js"></script>
+</head>
+<body>
+    <form>
+        <input type="file" id="hupinput" multiple />
+    </form>
+    <div id="hupdiv" style="margin-top:60px; border:2px dashed #000;width:200px;height:100px;">
+    <p style="text-align:center;color:#777777;">--- Drop Target ---</p>
+    </div>
+<script>
+    $('#hupinput').hup({})
+        .on('fileListLoaded', function(event, data)
+        {
+            console.log(data);
+        }).on('fileReadProgress', function(event, data)
+        {
+            console.log(data);
+        }).on('fileReadFinished', function(event, data)
+        {
+            console.log(data);
+        }).on('fileReadAll', function(event, data)
+        {
+            console.log(data);
+        });
+    // Specifying a url indicates we want to upload any files selected/dragged-and-dropped to this element
+    $('#hupdiv').hup({url:'huprec.php'})
+        .on('fileListLoaded', function(event, data)
+        {
+            console.log(data);
+        }).on('fileUploadProgress', function(event, data)
+        {
+            console.log(data);
+        }).on('fileUploadPause', function(event, data)
+        {
+            console.log(data);
+        }).on('fileUploadResume', function(event, data)
+        {
+            console.log(data);
+        }).on('fileUploadFinished', function(event, data)
+        {
+            console.log(data);
+        }).on('fileUploadAll', function(event, data)
+        {
+            console.log(data);
+        });
+</script>
+</body>
+</html>
