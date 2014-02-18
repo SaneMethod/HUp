@@ -1,5 +1,6 @@
-HUp - HTML5 File Reader/Uploader plugin for jQuery
-==================================================
+HUp
+===
+######HTML5 File Reader/Uploader plugin for jQuery
 
 This jQuery plugin allows you to turn any element into a drop target for reading in files, or uploading them.
 
