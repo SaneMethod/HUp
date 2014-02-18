@@ -39,7 +39,6 @@
      * @constructor
      */
     function Hup(options){
-        console.log(filters, fileTypes);
         this.init(options);
     }
 
