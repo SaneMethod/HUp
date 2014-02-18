@@ -15,9 +15,13 @@ the various events that are fired by the plugin. -->
     <p style="text-align:center;color:#777777;">--- Drop Target ---</p>
     </div>
 <script>
-    $('#hupinput').hup({})
+    $('#hupinput').hup({accept:'mp4, nana, wmv'})
         .on('fileListLoaded', function(event, data)
         {
+            console.log(data);
+        }).on('fileTypeError', function(event, data){
+            console.log(data);
+        }).on('fileSizeError', function(event, data){
             console.log(data);
         }).on('fileReadProgress', function(event, data)
         {
@@ -30,8 +34,14 @@ the various events that are fired by the plugin. -->
             console.log(data);
         });
     // Specifying a url indicates we want to upload any files selected/dragged-and-dropped to this element
-    $('#hupdiv').hup({url:'huprec.php'})
+    $('#hupdiv').hup({url:'huprec.php', accept:'image/*', max_file_size:200})
         .on('fileListLoaded', function(event, data)
+        {
+            console.log(data);
+        }).on('fileTypeError', function(event, data)
+        {
+            console.log(data);
+        }).on('fileSizeError', function(event, data)
         {
             console.log(data);
         }).on('fileUploadProgress', function(event, data)

@@ -4,12 +4,42 @@
  * jQuery plugin for reading in files or uploading them with the HTML5 file api and xhr2.
  */
 (function($){
+    var filters = {},
+        fileTypes = [];
+    /**
+     * Populate the filters and fileTypes object and array, with the former containing a mapping between
+     * file extensions and their mime types, and the latter the mimetypes themselves.
+     */
+    (function(mimetypes){
+        var mimes = mimetypes.split(/,/),
+            exts = [];
+        for (var i=0, len=mimes.length; i < len; i+=2)
+        {
+            fileTypes.push(mimes[i]);
+            exts = mimes[i+1].split(/ /);
+            for (var j=0, jlen = exts.length; j < jlen; j++)
+            {
+                filters[exts[j]] = mimes[i];
+            }
+        }
+    })(
+            "application/msword,doc dot,application/pdf,pdf,application/pgp-signature,pgp,application/postscript," +
+            "ps ai eps,application/rtf,rtf,application/vnd.ms-excel,xls xlb,application/vnd.ms-powerpoint," +
+            "ppt pps pot,application/zip,zip,application/x-shockwave-flash,swf swfl,application/x-javascript,js," +
+            "application/json,json,audio/mpeg,mpga mpega mp2 mp3,audio/x-wav,wav,audio/mp4,m4a,image/bmp,bmp," +
+            "image/gif,gif,image/jpeg,jpeg jpg jpe,image/photoshop,psd,image/png,png,image/svg+xml,svg svgz," +
+            "image/tiff,tiff tif,text/plain,asc txt text diff log,text/html,htm html xhtml,text/css,css,text/csv," +
+            "csv,text/rtf,rtf,video/mpeg,mpeg mpg mpe m2v,video/quicktime,qt mov,video/mp4,mp4,video/x-m4v,m4v," +
+            "video/x-flv,flv,video/x-ms-wmv,wmv,video/avi,avi,video/webm,webm,video/3gpp,3gp,video/3gpp2,3g2," +
+            "application/octet-stream,exe"
+        );
     /**
      * Construct html5 reader/uploader.
      * @param {Object} options
      * @constructor
      */
     function Hup(options){
+        console.log(filters, fileTypes);
         this.init(options);
     }
 
@@ -20,11 +50,13 @@
     Hup.prototype.init = function(options)
     {
         this.options = $.extend({
+            accept:[], // A string or array of extensions or mime-types to accept for reading/uploading
             async:true, // Whether to send this file asynchronously
             chunked:true, // Whether to send the file in chunks
-            chunk_size:1048576, // Size of each chunk (default 1024*1024)
+            chunk_size:1048576, // Size of each chunk (default 1024*1024, 1 MiB)
             input:'', // Input element
             make_dnd:false, // Whether to make the input element handle drag and drop - auto-true if not file input
+            max_file_size:0,// Max file size - 0 means no max size
             read_method:'readAsDataURL', // the read method to use for reading in the file - one of
             // readAsText, readAsBinaryString, readAsDataURL or readAsArrayBuffer
             type:'PUT', // Type of request to use for uploading
@@ -32,6 +64,7 @@
         }, options);
 
         this.input = $(this.options.input);
+        this.options.accept = this.acceptFilters(this.options.accept);
 
         var that = this;
         if (this.options.make_dnd || !this.isFileInput(this.input))
@@ -46,7 +79,47 @@
             event = event.originalEvent;
             that.handleSelect(event);
         });
-    }
+    };
+
+    /**
+     * Translate the accept string or array into an array of mime types, based on the mime types in filters.
+     * Input should look like the expected extensions:
+     * "swf, wmv, mp4" or ['swf', 'wmv', 'mp4']
+     * Or like mime type categories, or the mime types themselves:
+     * "application/*, application/pdf" or ['image/*', 'plain/text']
+     * @param accept
+     */
+    Hup.prototype.acceptFilters = function(accept){
+        var mimes = [];
+        // Ensure accept is an array of extensions or mime types
+        if (typeof accept === 'string' || accept instanceof String)
+        {
+            accept = accept.split(/,/);
+        }
+        for (var i=0, len = accept.length; i < len; i++)
+        {
+            var mime = accept[i].trim().split(/\//);
+            if (mime.length > 1)
+            {
+                if (mime[1] === '*')
+                {
+                    // Every mime-type that begins with mime[0] now needs to be pushed into the mimes array
+                    for (var j=0, jlen = fileTypes.length; j < jlen; j++)
+                    {
+                        var fileType = fileTypes[j].split(/\//);
+                        if (mime[0] === fileType[0]) mimes.push(fileTypes[j]);
+                    }
+                } else {
+                    // Pass the mime type through unmolested
+                    mimes.push(mime.join('/'));
+                }
+            } else {
+                // Only an extension has been specified - map to the mime type
+                if (mime[0] in filters) mimes.push(filters[mime[0]]);
+            }
+        }
+        return mimes;
+    };
 
     /**
      * Return whether the passed element is an input of type file.
@@ -103,11 +176,43 @@
      */
     Hup.prototype.processFiles = function(files, upload){
         var that = this,
-            processed = 0;
+            processed = 0,
+            accept = this.options.accept,
+            accepted = false,
+            maxSize = this.options.max_file_size,
+            fprocess;
 
         for (var i=0, len = files.length; i < len; i++)
         {
-            var fprocess = (upload) ? new DeferXhr(this.options, files[i]) :
+            // Check file against mime accept restrictions if any restrictions are set
+            if (accept.length)
+            {
+                accepted = false;
+                for (var j=0, jlen = accept.length; j < jlen; j++)
+                {
+                    accepted = (files[i].type === accept[j]);
+                    if (accepted) break;
+                }
+                if (!accepted)
+                {
+                    this.input.trigger(Hup.state.FILE_TYPE_ERROR,
+                        {state:Hup.state.FILE_TYPE_ERROR,
+                            error:'File type is '+files[i].type+', accepted types are '+
+                                accept.join(',')+'.'});
+                    continue;
+                }
+            }
+            // Check file against size restrictions
+            if (maxSize && files[i].size > maxSize)
+            {
+                this.input.trigger(Hup.state.FILE_SIZE_ERROR,
+                    {state:Hup.state.FILE_SIZE_ERROR,
+                        error:'File size is '+files[i].size+', max file size is '+maxSize+'.'});
+                continue;
+            }
+            // Create new DeferXhr or DeferReader and listen on its progression and completion to fire the appropriate
+            // events for interested listeners on our input
+            fprocess = (upload) ? new DeferXhr(this.options, files[i]) :
                 new DeferReader(this.options.read_method, files[i]);
 
             fprocess.progress(function(progress){
@@ -115,9 +220,10 @@
             }).done(function(res){
                 that.input.trigger(res.state, res);
                 processed++;
-                if (processed == len)
+                if (processed >= len){
                     that.input.trigger((upload) ? Hup.state.FILE_UPLOAD_ALL : Hup.state.FILE_READ_ALL ,
                         {state:(upload) ? Hup.state.FILE_UPLOAD_ALL : Hup.state.FILE_READ_ALL, files:len});
+                }
             }).fail(function(res)
             {
                 that.input.trigger(res.state, res);
@@ -127,14 +233,16 @@
 
     /**
      * Custom events we'll trigger on our input element at the appropriate times.
-     * @type {{FILE_LIST_ERROR: string, FILE_LIST_LOADED: string, FILE_READ_ERROR: string,
-     * FILE_READ_PROGRESS: string, FILE_READ_FINISHED: string, FILE_READ_ALL: string,
+     * @type {{FILE_LIST_ERROR: string, FILE_LIST_LOADED: string, FILE_TYPE_ERROR: string, FILE_SIZE_ERROR: string,
+     * FILE_READ_ERROR: string, FILE_READ_PROGRESS: string, FILE_READ_FINISHED: string, FILE_READ_ALL: string,
      * FILE_UPLOAD_ERROR: string, FILE_UPLOAD_PROGRESS: string, FILE_UPLOAD_PAUSE: string,
      * FILE_UPLOAD_RESUME: string, FILE_UPLOAD_FINISHED: string, FILE_UPLOAD_ALL: string}}
      */
     Hup.state = {
         FILE_LIST_ERROR:'fileListError',
         FILE_LIST_LOADED:'fileListLoaded',
+        FILE_TYPE_ERROR:'fileTypeError',
+        FILE_SIZE_ERROR:'fileSizeError',
         FILE_READ_ERROR:'fileReadError',
         FILE_READ_PROGRESS:'fileReadProgress',
         FILE_READ_FINISHED:'fileReadFinished',
@@ -202,7 +310,7 @@
             this.xhr.overrideMimeType((this.file.type || 'application/octet-stream'));
             this.xhr.send(this.file);
         }
-    }
+    };
 
     /**
      * Report on the upload progress, as a number between 0 and 1, modifying the progress if we're uploading a
@@ -227,7 +335,7 @@
 
     DeferXhr.prototype.uploadError = function(event){
         this.defer.reject({state:Hup.state.FILE_UPLOAD_ERROR, error:event});
-    }
+    };
 
     /**
      * Called when we've completed an upload (full file or chunk). If full file, or we've reached the last chunk,
@@ -277,7 +385,7 @@
             response = {error:e, text:this.xhr.responseText};
         }
         return response;
-    }
+    };
 
     /**
      * Pause the upload (works for chunked uploads only).
@@ -286,7 +394,7 @@
         this.paused = true;
         this.defer.notify({state:Hup.state.FILE_UPLOAD_PAUSE, current_range:{start:this.start, end:this.end,
             total:this.file.size}});
-    }
+    };
 
     /**
      * Resume the upload (works for chunked uploads only).
@@ -299,7 +407,7 @@
                 total:this.file.size}});
             this.upload();
         }
-    }
+    };
 
     /**
      * Deferred wrapper for file reader.
@@ -373,7 +481,7 @@
      * $('#input').hup({options}).on('events') --OR--
      * $('.inputs').hup({options}).on('events')
      * @param options
-     * @returns {Hup} Promise deferred from Hup.
+     * @returns {Object} jQuery object reference for the given elements.
      */
     $.fn.hup = function(options){
         var options = (options || {});
@@ -387,7 +495,6 @@
             }
             else if (hup instanceof Hup)
             {
-                console.log('reinit');
                 hup.init(options);
             }
         });
