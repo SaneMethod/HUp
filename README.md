@@ -32,7 +32,7 @@ $('#element').hup({options}).on('events', function(event, data){});
     chunk_size:1048576, // Size of each chunk (default 1024*1024)
     input:'', // Input element
     make_dnd:false, // Whether to make the input element handle drag and drop - auto-true if not file input
-    max_file_size:10485760,  // Max file size (default 10*1024*1024, 10 MiB)
+    max_file_size:0, // Max file size - 0 means no max size
     read_method:'readAsDataURL', // the read method to use for reading in the file - one of
     // readAsText, readAsBinaryString, readAsDataURL or readAsArrayBuffer
     type:'PUT', // Type of request to use for uploading
