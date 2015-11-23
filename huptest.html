@@ -15,26 +15,27 @@ the various events that are fired by the plugin. -->
     <p style="text-align:center;color:#777777;">--- Drop Target ---</p>
     </div>
 <script>
-    $('#hupinput').hup({accept:'mp4, nana, wmv'})
-        .on('fileListLoaded', function(event, data)
-        {
+    $('#hupinput').hup({accept:'mp4, nana, wmv, rmvb'})
+        .on('fileListLoaded', function(event, data){
             console.log(data);
         }).on('fileTypeError', function(event, data){
             console.log(data);
         }).on('fileSizeError', function(event, data){
             console.log(data);
-        }).on('fileReadProgress', function(event, data)
-        {
+        }).on('fileReadProgress', function(event, data){
             console.log(data);
-        }).on('fileReadFinished', function(event, data)
-        {
+        }).on('fileReadPause', function(event, data){
             console.log(data);
-        }).on('fileReadAll', function(event, data)
-        {
+        }).on('fileReadResume', function(event, data){
+            console.log(data);
+        }).on('fileReadFinished', function(event, data){
+            console.log(data);
+        }).on('fileReadAll', function(event, data){
             console.log(data);
         });
     // Specifying a url indicates we want to upload any files selected/dragged-and-dropped to this element
-    $('#hupdiv').hup({url:'huprec.php', accept:'image/*', max_file_size:200})
+    // Note the max_file_size set to 20MiB, in bytes
+    $('#hupdiv').hup({url:'huprec.php', accept:'image/*', max_file_size:20971520})
         .on('fileListLoaded', function(event, data)
         {
             console.log(data);

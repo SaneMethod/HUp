@@ -2,12 +2,21 @@ HUp
 ===
 ######HTML5 File Reader/Uploader plugin for jQuery
 
-This jQuery plugin allows you to turn any element into a drop target for reading in files, or uploading them.
+This jQuery plugin allows you to read files (using the FileReader interface), or upload files (using XMLHttpRequest
+Level 2), either chunked or unchunked for either, and allowing you to easily convert any element into a drop target
+for any number of files to read or upload.
 
-Files are read and returned within custom events with a configurable read method (ie. readAsDataURL, readAsText, etc.).
+File read/upload start, progress and completion, including batch reporting, occur within custom events,
+as outlined below.
 
-Uploads are chunked by default, with a chunk size of 1024*1024 bytes (1 MiB). These settings, amongst others, are
-configurable options passed to the plugin.
+The types of files to be accepted for read or upload can be restricted, based on mime-types and a more permissive
+version of the accept filter on HTML5 file inputs.
+
+Both uploads and file reads are chunked by default, with a chunk size of 1024*1024 bytes (1 MiB). These settings,
+amongst others, are configurable options that can be passed to the plugin, with sensible defaults.
+
+See the huptest.html file and huprec.php for example usage and an (insecure, purely for demonstrative purposes) example
+of how to receive and save the uploaded file on the server-side, respectively.
 
 Usage:
 ------

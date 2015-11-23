@@ -3,6 +3,7 @@
  *
  * jQuery plugin for reading in files or uploading them with the HTML5 file api and xhr2.
  */
+"use strict";
 (function($){
     var filters = {},
         fileTypes = [];
@@ -13,6 +14,7 @@
     (function(mimetypes){
         var mimes = mimetypes.split(/,/),
             exts = [];
+
         for (var i=0, len=mimes.length; i < len; i+=2)
         {
             fileTypes.push(mimes[i]);
@@ -48,24 +50,25 @@
      */
     Hup.prototype.init = function(options)
     {
+        var that = this;
+
         this.options = $.extend({
             accept:[], // A string or array of extensions or mime-types to accept for reading/uploading
-            async:true, // Whether to send this file asynchronously
-            chunked:true, // Whether to send the file in chunks
+            async:true, // Whether to send file(s) asynchronously
+            chunked:true, // Whether to send or read the file(s) in chunks
             chunk_size:1048576, // Size of each chunk (default 1024*1024, 1 MiB)
-            input:'', // Input element
+            input:'', // Input element - this is set automatically when using HUp in its jQuery plugin form.
             make_dnd:false, // Whether to make the input element handle drag and drop - auto-true if not file input
             max_file_size:0,// Max file size - 0 means no max size
-            read_method:'readAsDataURL', // the read method to use for reading in the file - one of
+            read_method:'readAsDataURL', // the read method to use for reading in the file(s) - one of
             // readAsText, readAsBinaryString, readAsDataURL or readAsArrayBuffer
             type:'PUT', // Type of request to use for uploading
-            url:false // Url endpoint to send file to - if not specified or false, we read the file and return it
+            url:false // Url endpoint to send file to - if not specified or false, we read and return the file(s)
         }, options);
 
         this.input = $(this.options.input);
         this.options.accept = this.acceptFilters(this.options.accept);
 
-        var that = this;
         if (this.options.make_dnd || !this.isFileInput(this.input))
         {
             this.options.make_dnd = true;
@@ -89,7 +92,10 @@
      * @param accept
      */
     Hup.prototype.acceptFilters = function(accept){
-        var mimes = [];
+        var mimes = [],
+            mime,
+            fileType;
+
         // Ensure accept is an array of extensions or mime types
         if (typeof accept === 'string' || accept instanceof String)
         {
@@ -97,7 +103,7 @@
         }
         for (var i=0, len = accept.length; i < len; i++)
         {
-            var mime = accept[i].trim().split(/\//);
+            mime = accept[i].trim().split(/\//);
             if (mime.length > 1)
             {
                 if (mime[1] === '*')
@@ -105,7 +111,7 @@
                     // Every mime-type that begins with mime[0] now needs to be pushed into the mimes array
                     for (var j=0, jlen = fileTypes.length; j < jlen; j++)
                     {
-                        var fileType = fileTypes[j].split(/\//);
+                        fileType = fileTypes[j].split(/\//);
                         if (mime[0] === fileType[0]) mimes.push(fileTypes[j]);
                     }
                 } else {
@@ -126,7 +132,7 @@
      * @returns {boolean}
      */
     Hup.prototype.isFileInput = function(input){
-        return (input[0].tagName === 'INPUT' && input[0].getAttribute('type').indexOf('file') !== -1);
+        return (input[0].tagName === 'INPUT' && /file/i.test(input[0].getAttribute('type')));
     };
 
     /**
@@ -158,8 +164,10 @@
         }
         if (!files.length)
         {
-            this.input.trigger(Hup.state.FILE_LIST_ERROR, {state:Hup.state.FILE_LIST_ERROR,
-                error:'No files found in file list; no files were selected.'});
+            this.input.trigger(Hup.state.FILE_LIST_ERROR, {
+                state:Hup.state.FILE_LIST_ERROR,
+                error:'No files found in file list; no files were selected.'
+            });
             return;
         }
         this.input.trigger(Hup.state.FILE_LIST_LOADED, {state:Hup.state.FILE_LIST_LOADED, files:files});
@@ -181,6 +189,8 @@
             maxSize = this.options.max_file_size,
             fprocess;
 
+        this.fprocessors = [];
+
         for (var i=0, len = files.length; i < len; i++)
         {
             // Check file against mime accept restrictions if any restrictions are set
@@ -194,40 +204,94 @@
                 }
                 if (!accepted)
                 {
-                    this.input.trigger(Hup.state.FILE_TYPE_ERROR,
-                        {state:Hup.state.FILE_TYPE_ERROR,
-                            error:'File type is '+files[i].type+', accepted types are '+
-                                accept.join(',')+'.'});
+                    this.input.trigger(Hup.state.FILE_TYPE_ERROR, {
+                        state:Hup.state.FILE_TYPE_ERROR,
+                        file_name:files[i].name,
+                        error:'File type is '+files[i].type+', accepted types are '+accept.join(',')+'.'
+                    });
                     continue;
                 }
             }
             // Check file against size restrictions
             if (maxSize && files[i].size > maxSize)
             {
-                this.input.trigger(Hup.state.FILE_SIZE_ERROR,
-                    {state:Hup.state.FILE_SIZE_ERROR,
-                        error:'File size is '+files[i].size+', max file size is '+maxSize+'.'});
+                this.input.trigger(Hup.state.FILE_SIZE_ERROR, {
+                    state:Hup.state.FILE_SIZE_ERROR,
+                    file_name:files[i].name,
+                    error:'File size is '+files[i].size+', max file size is '+maxSize+'.'
+                });
                 continue;
             }
             // Create new DeferXhr or DeferReader and listen on its progression and completion to fire the appropriate
             // events for interested listeners on our input
             fprocess = (upload) ? new DeferXhr(this.options, files[i]) :
-                new DeferReader(this.options.read_method, files[i]);
+                new DeferReader(this.options, files[i]);
 
-            fprocess.progress(function(progress){
+            fprocess.promise.progress(function(progress){
                 that.input.trigger(progress.state, progress);
             }).done(function(res){
                 that.input.trigger(res.state, res);
                 processed++;
-                if (processed >= len){
-                    that.input.trigger((upload) ? Hup.state.FILE_UPLOAD_ALL : Hup.state.FILE_READ_ALL ,
-                        {state:(upload) ? Hup.state.FILE_UPLOAD_ALL : Hup.state.FILE_READ_ALL, files:len});
+                if (processed >= len)
+                {
+                    if (upload)
+                    {
+                        that.input.trigger(Hup.state.FILE_UPLOAD_ALL, {state:Hup.state.FILE_UPLOAD_ALL, files:len});
+                        return;
+                    }
+                    that.input.trigger(Hup.state.FILE_READ_ALL, {state:Hup.state.FILE_READ_ALL, files:len});
                 }
             }).fail(function(res)
             {
                 that.input.trigger(res.state, res);
             });
+            this.fprocessors.push(fprocess);
         }
+    };
+
+    /**
+     * Pause any in progress, chunked uploads/file reads. If pauseList is specified,
+     * elements should be either the names of the files or the index in which they were returned in the files
+     * list returned from the FILE_LIST_LOADED event. Can provide only a single string or number of only a single
+     * upload/read needs to be paused.
+     * @param {Array|number|string|boolean|undefined} pauseList
+     */
+    Hup.prototype.pause = function(pauseList){
+        pauseList = (!pauseList) ? false : Array.isArray(pauseList) ? pauseList : [pauseList];
+
+        this.fprocessors.forEach(function(fprocess, idx){
+            if (!pauseList)
+            {
+                fprocess.pause();
+                return;
+            }
+            if (pauseList.indexOf(idx) !== -1 || pauseList.indexOf(fprocess.file.name) !== -1)
+            {
+                fprocess.pause();
+            }
+        });
+    };
+
+    /**
+     * Resume any in progress, paused, chunked uploads/file reads, following the same rules for pauseList as
+     * specified for pause.
+     * @see Hup.prototype.pause
+     * @param {Array|number|string|boolean|undefined} pauseList
+     */
+    Hup.prototype.resume = function(pauseList){
+        pauseList = (!pauseList) ? false : Array.isArray(pauseList) ? pauseList : [pauseList];
+
+        this.fprocessors.forEach(function(fprocess, idx){
+            if (!pauseList)
+            {
+                fprocess.resume();
+                return;
+            }
+            if (pauseList.indexOf(idx) !== -1 || pauseList.indexOf(fprocess.file.name) !== -1)
+            {
+                fprocess.resume();
+            }
+        });
     };
 
     /**
@@ -245,6 +309,8 @@
         FILE_READ_ERROR:'fileReadError',
         FILE_READ_PROGRESS:'fileReadProgress',
         FILE_READ_FINISHED:'fileReadFinished',
+        FILE_READ_PAUSE:'fileReadPause',
+        FILE_READ_RESUME:'fileReadResume',
         FILE_READ_ALL:'fileReadAll',
         FILE_UPLOAD_ERROR:'fileUploadError',
         FILE_UPLOAD_PROGRESS:'fileUploadProgress',
@@ -262,9 +328,8 @@
      * @constructor
      */
     function DeferXhr(options, file){
-        var that = this;
-
         this.defer = $.Deferred();
+        this.promise = this.defer.promise();
         this.file = file;
         this.options = options;
         this.paused = false;
@@ -278,13 +343,13 @@
             this.end = Math.min(this.start+this.options.chunk_size, this.file.size);
         }
 
-        this.xhr.addEventListener('load', function(){that.complete();}, false);
-        this.xhr.upload.addEventListener('progress', function(event){that.uploadProgress(event);}, false);
-        this.xhr.upload.addEventListener('error', function(event){that.uploadError(event);}, false);
+        this.xhr.addEventListener('load', this.complete.bind(this), false);
+        this.xhr.upload.addEventListener('progress', this.uploadProgress.bind(this), false);
+        this.xhr.upload.addEventListener('error', this.uploadError.bind(this), false);
 
         this.upload();
 
-        return this.defer.promise();
+        return this;
     }
 
     /**
@@ -326,14 +391,18 @@
             }
             this.time.end = +new Date();
             this.time.speed = (this.file.size*this.progress)/(this.time.end-this.time.start)*1000;
-            console.log('time:', this.time.end-this.time.start, 'speed:', this.time.speed);
+            console.log('time:', this.time.end-this.time.start, 'speed:', this.time.speed, 'progress:', this.progress);
             this.defer.notify({state:Hup.state.FILE_UPLOAD_PROGRESS, file_name:this.file.name, speed:this.time.speed,
                 progress:this.progress});
         }
     };
 
+    /**
+     * Call reject on the defer for this DeferXhr object, passing the details back to any subscribed event listeners.
+     * @param event
+     */
     DeferXhr.prototype.uploadError = function(event){
-        this.defer.reject({state:Hup.state.FILE_UPLOAD_ERROR, error:event});
+        this.defer.reject({state:Hup.state.FILE_UPLOAD_ERROR, file_name:this.file.name, error:event});
     };
 
     /**
@@ -350,7 +419,7 @@
         }
 
         this.defer.notify({state:Hup.state.FILE_UPLOAD_PROGRESS, file_name:this.file.name,
-            response:this.parseResponse(this.xhr.responseText), progress:this.progress});
+            response:this.parseResponse(), progress:this.progress});
 
         this.start = this.end;
         this.end = Math.min(this.start+this.options.chunk_size, this.file.size);
@@ -367,15 +436,14 @@
     DeferXhr.prototype.uploadComplete = function(){
         this.defer.resolve({state:Hup.state.FILE_UPLOAD_FINISHED, file_name:this.file.name,
             file_size:this.file.size, file_type:this.file.type,
-            response:this.parseResponse(this.xhr.responseText)});
+            response:this.parseResponse()});
     };
 
     /**
      * Try to parse the response as a JSON, and on failure return the error and the plaintext.
-     * @param response
      * @returns {Object}
      */
-    DeferXhr.prototype.parseResponse = function(response)
+    DeferXhr.prototype.parseResponse = function()
     {
         var response;
         try{
@@ -387,19 +455,23 @@
     };
 
     /**
-     * Pause the upload (works for chunked uploads only).
+     * Pause the upload - that is, after the current chunk is finished uploading, cease uploading chunks until
+     * resume is called. For obvious reasons, this only works with chunked uploads.
+     * If the state of the deferred object is not pending (that is, is either already resolved or rejected),
+     * return early - we won't attempt to pause an upload that's finished or failed.
      */
     DeferXhr.prototype.pause = function(){
+        if (this.defer.state() !== 'pending' || !this.options.chunked) return;
         this.paused = true;
         this.defer.notify({state:Hup.state.FILE_UPLOAD_PAUSE, current_range:{start:this.start, end:this.end,
             total:this.file.size}});
     };
 
     /**
-     * Resume the upload (works for chunked uploads only).
+     * Resume the upload if paused (works for chunked uploads only).
      */
     DeferXhr.prototype.resume = function(){
-        if (this.paused)
+        if (this.options.chunked && this.paused)
         {
             this.paused = false;
             this.defer.notify({state:Hup.state.FILE_UPLOAD_RESUME, current_range:{start:this.start, end:this.end,
@@ -410,34 +482,106 @@
 
     /**
      * Deferred wrapper for file reader.
-     * @param read_method
-     * @param file
+     * @param {Object} options
+     * @param {File|Blob} file
      * @returns {Object} promise The Deferred promise object
      * @constructor
      */
-    function DeferReader(read_method, file){
+    function DeferReader(options, file){
+        this.options = options;
         this.defer = $.Deferred();
+        this.promise = this.defer.promise();
         this.reader = new FileReader();
         this.file = file;
-        this.read_method = read_method;
+        this.read_method = this.options.read_method;
+        this.paused = false;
+        this.progress = 0;
+
+        if (this.options.chunked)
+        {
+            this.start = 0;
+            this.end = Math.min(this.start+this.options.chunk_size, this.file.size);
+        }
 
         this.listen();
-        this.reader[read_method](file);
+        this.readFile();
 
-        return this.defer.promise();
+        return this;
     }
 
     /**
-     * Listen for the various events of interest on the file reader, and return notification or resolution
-     * to deferred as appropriate.
+     * Read the entire file or a slice thereof, depending on the value of options.chunked and chunk_size.
      */
-    DeferReader.prototype.listen = function(){
-        var that = this;
+    DeferReader.prototype.readFile = function(){
+        if (this.options.chunked)
+        {
+            this.reader[this.read_method](this.file.slice(this.start, this.end));
+            return;
+        }
+        this.reader[this.read_method](this.file);
+    };
 
-        this.reader.addEventListener('error', function(event){
-            var err = event.target.error,
+    /**
+     * Report on the file read progress, as a number between 0 and 1, modifying the progress if we're reading a
+     * file in chunks to ensure that we're reporting the total percentage of the file read, not just the percentage
+     * of the current chunk read (see also readComplete).
+     * @param event
+     */
+    DeferReader.prototype.readProgress = function(event){
+        var progress = this.progress;
+
+        if (event.lengthComputable)
+        {
+            progress = event.loaded/event.total;
+            if (this.options.chunked)
+            {
+                progress *= (this.end/this.file.size);
+            }
+            this.defer.notify({state:Hup.state.FILE_READ_PROGRESS, file_name:this.file.name, progress:progress});
+        }
+        this.progress = progress;
+    };
+
+    /**
+     * On read completion, if we're reading in chunks, if we've reached the last chunk, report on file read completion.
+     * If there are remaining chunks, report on progress and read the next chunk.
+     * Otherwise if we're reading the entire file in one go, report on file read completion.
+     * @param event
+     */
+    DeferReader.prototype.readComplete = function(event){
+        if (event.target.readyState == FileReader.DONE && (!this.options.chunked || this.end == this.file.size))
+        {
+            this.defer.resolve({
+                state:Hup.state.FILE_READ_FINISHED, file_name:this.file.name, file_size:this.file.size,
+                file_type:this.file.type, read_method:this.read_method, read_result:event.target.result
+            });
+            return;
+        }
+
+        this.defer.notify({
+            state:Hup.state.FILE_READ_PROGRESS, file_name:this.file.name, progress:this.progress,
+            read_result:(event.target.readyState == FileReader.DONE) ? event.target.result : void 0
+        });
+
+        this.start = this.end;
+        this.end = Math.min(this.start+this.options.chunk_size, this.file.size);
+
+        if (!this.paused)
+        {
+            this.readFile();
+        }
+    };
+
+    /**
+     * On file read error, attempt to create a meaningful error string, and return alongside the error code, reader
+     * state and the name of the file on which this error occurred.
+     * @param event
+     */
+    DeferReader.prototype.readError = function(event){
+        var err = event.target.error,
                 errCode = event.target.error.code,
                 errMsg = 'Error attempting to read file "'+this.file.name+'": ';
+
             switch(errCode)
             {
                 case err.NOT_FOUND_ERR:
@@ -453,25 +597,47 @@
                     errMsg += "An unexpected error occurred.";
                     break;
             }
-            that.defer.reject({state:Hup.state.FILE_READ_ERROR, error:errMsg});
-        }, false);
+            this.defer.reject({state:Hup.state.FILE_READ_ERROR, file_name:this.file.name, error:errMsg, code:errCode});
+    };
 
-        this.reader.addEventListener('progress', function(event){
-            if (event.lengthComputable)
-            {
-                that.defer.notify({state:Hup.state.FILE_READ_PROGRESS, file_name:that.file.name,
-                    progress:(event.loaded/event.total)});
-            }
-        });
+    /**
+     * Listen for the various events of interest on the file reader, and return notification or resolution
+     * to deferred as appropriate.
+     */
+    DeferReader.prototype.listen = function(){
+        this.reader.addEventListener('error', this.readError.bind(this), false);
 
-        this.reader.addEventListener('loadend', function(event){
-            if (event.target.readyState == FileReader.DONE)
-            {
-                that.defer.resolve({state:Hup.state.FILE_READ_FINISHED,
-                    file_name:that.file.name, file_size:that.file.size, file_type:that.file.type,
-                    read_method:that.read_method, read_result:event.target.result});
-            }
-        }, false);
+        this.reader.addEventListener('progress', this.readProgress.bind(this), false);
+
+        this.reader.addEventListener('loadend', this.readComplete.bind(this), false);
+    };
+
+    /**
+     * Pause this file reader if chunked by ceasing to read the file in after the current chunk is completed.
+     * If the defer has already been resolved or rejected, we return, making no attempt to pause a file
+     * read that has already finished or been rejected.
+     */
+    DeferReader.prototype.pause = function(){
+        if (this.defer.state() !== 'pending' || !this.options.chunked) return;
+        this.paused = true;
+        this.defer.notify({
+            state:Hup.state.FILE_READ_PAUSE,
+            current_range:{start:this.start, end:this.end, total:this.file.size}});
+    };
+
+    /**
+     * Resume this file reader from the next chunk if it was previously paused and chunked.
+     */
+    DeferReader.prototype.resume = function(){
+        if (this.options.chunked && this.paused)
+        {
+            this.paused = false;
+            this.defer.notify({
+                state:Hup.state.FILE_READ_RESUME,
+                current_range:{start:this.start, end:this.end, total:this.file.size}
+            });
+            this.readFile();
+        }
     };
 
     /**
@@ -483,7 +649,7 @@
      * @returns {Object} jQuery object reference for the given elements.
      */
     $.fn.hup = function(options){
-        var options = (options || {});
+        options = options || {};
         return this.each(function(){
             options.input = this;
             var $this = $(this),
