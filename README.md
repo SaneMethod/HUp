@@ -129,25 +129,41 @@ The relative or absolute url to upload the file to. If not specified, we instead
 * 'fileSizeError' - Fires when a file is larger than max_file_size.
 
 ```javascript
-{state:String, error:String}
+{state:String, file_name:String, error:String}
 ```
 
 * 'fileTypeError' - Fires when a file is of a type not specified in accept.
 
 ```javascript
-{state:String, error:String}
+{state:String, file_name:String, error:String}
 ```
 
 * 'fileReadError' - Fires when the file reader encounters an error.
 
 ```javascript
-{state:String, error:String}
+{state:String, file_name:String, error:String}
 ```
 
-* 'fileReadProgress' - Fires when there is progress reading a file.
+* 'fileReadProgress' - Fires when there is progress reading a file. If the file is being read in chunks, when each
+chunk is completed a fileReadProgress event will be fired, and these events will include the optional 'result' property
+on the returned object, which represents the result of reading the chunk in the format dictated by the specified
+read method.
 
 ```javascript
-{state:String, progress:Number /*(between 0 and 1)*/, file_name:String}
+{state:String, progress:Number /*(between 0 and 1)*/, file_name:String,
+result:(String||DataURL||ArrayBuffer||undefined)}
+```
+
+* 'fileReadPause' - Fires when reading has been paused (only for chunked file reading).
+
+```javascript
+{state:String, file_name:String, current_range:{start:Number, end:Number, total:Number}}
+```
+
+* 'fileReadResume' - Fires when uploading resumes.
+
+```javascript
+{state:String, file_name:String, current_range:{start:Number, end:Number, total:Number}}
 ```
 
 * 'fileReadFinished' - Fires when a file has been completely read into memory, and returns the result of the read.
@@ -166,7 +182,7 @@ read_result:(String||DataURL||ArrayBuffer)
 * 'fileUploadError' - Fires when xhr encounters an error uploading a file.
 
 ```javascript
-{state:String, error:String}
+{state:String, file_name:String, error:String}
 ```
 
 * 'fileUploadProgress' - Fires when there is progress uploading a file.
@@ -178,13 +194,13 @@ read_result:(String||DataURL||ArrayBuffer)
 * 'fileUploadPause' - Fires when uploading has been paused (only for chunked uploads).
 
 ```javascript
-{state:String, current_range:{start:Number, end:Number, total:Number}}
+{state:String, file_name:String, current_range:{start:Number, end:Number, total:Number}}
 ```
 
 * 'fileUploadResume' - Fires when uploading resumes.
 
 ```javascript
-{state:String, current_range:{start:Number, end:Number, total:Number}}
+{state:String, file_name:String, current_range:{start:Number, end:Number, total:Number}}
 ```
 
 * 'fileUploadFinished' - Fires when upload of a file completes.

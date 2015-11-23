@@ -463,8 +463,10 @@
     DeferXhr.prototype.pause = function(){
         if (this.defer.state() !== 'pending' || !this.options.chunked) return;
         this.paused = true;
-        this.defer.notify({state:Hup.state.FILE_UPLOAD_PAUSE, current_range:{start:this.start, end:this.end,
-            total:this.file.size}});
+        this.defer.notify({
+            state:Hup.state.FILE_UPLOAD_PAUSE, file_name:this.file.name,
+            current_range:{start:this.start, end:this.end, total:this.file.size}
+        });
     };
 
     /**
@@ -474,8 +476,10 @@
         if (this.options.chunked && this.paused)
         {
             this.paused = false;
-            this.defer.notify({state:Hup.state.FILE_UPLOAD_RESUME, current_range:{start:this.start, end:this.end,
-                total:this.file.size}});
+            this.defer.notify({
+                state:Hup.state.FILE_UPLOAD_RESUME, file_name:this.file.name,
+                current_range:{start:this.start, end:this.end, total:this.file.size}
+            });
             this.upload();
         }
     };
@@ -621,7 +625,7 @@
         if (this.defer.state() !== 'pending' || !this.options.chunked) return;
         this.paused = true;
         this.defer.notify({
-            state:Hup.state.FILE_READ_PAUSE,
+            state:Hup.state.FILE_READ_PAUSE, file_name:this.file.name,
             current_range:{start:this.start, end:this.end, total:this.file.size}});
     };
 
@@ -633,7 +637,7 @@
         {
             this.paused = false;
             this.defer.notify({
-                state:Hup.state.FILE_READ_RESUME,
+                state:Hup.state.FILE_READ_RESUME, file_name:this.file.name,
                 current_range:{start:this.start, end:this.end, total:this.file.size}
             });
             this.readFile();
