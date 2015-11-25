@@ -39,7 +39,7 @@ class UploadHandler
             preg_split('/[^0-9]+/', $_SERVER['HTTP_CONTENT_RANGE']) : null;
         $file->size = $content_range ? $content_range[3] : $_SERVER['CONTENT_LENGTH'];
         // Get the non-standard header for the file name, if available, and format appropriately
-        $file->name = $this->prepName(isset($_SERVER['HTTP_X_FILE_NAME']) ? $_SERVER['HTTP_X_FILE_NAME'] : 'tmp');
+        $file->name = $this->prepName(isset($_SERVER['HTTP_X_FILE_NAME']) ? urldecode($_SERVER['HTTP_X_FILE_NAME']) : 'tmp');
         $file->path = $this->options['upload_dir'];
 
         if (!is_dir($file->path))
