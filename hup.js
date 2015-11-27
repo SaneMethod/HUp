@@ -519,7 +519,7 @@
     DeferReader.prototype.readFile = function(){
         if (this.options.chunked)
         {
-            this.reader[this.read_method](this.file.slice(this.start, this.end));
+            this.reader[this.read_method](this.file.slice(this.start, this.end, this.file.type));
             return;
         }
         this.reader[this.read_method](this.file);

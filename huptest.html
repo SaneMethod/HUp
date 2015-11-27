@@ -15,7 +15,7 @@ the various events that are fired by the plugin. -->
     <p style="text-align:center;color:#777777;">--- Drop Target ---</p>
     </div>
 <script>
-    $('#hupinput').hup({accept:'mp4, nana, wmv, rmvb'})
+    $('#hupinput').hup({accept:'mp4, mpeg, nana, wmv'})
         .on('fileListLoaded', function(event, data){
             console.log(data);
         }).on('fileTypeError', function(event, data){
