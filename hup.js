@@ -360,7 +360,7 @@
 
         this.xhr.open(this.options.type, this.options.url, this.options.async);
         this.xhr.setRequestHeader('Accept', 'application/json');
-        this.xhr.setRequestHeader('X-File-Name', this.file.name);
+        this.xhr.setRequestHeader('X-File-Name', encodeURIComponent(this.file.name));
         this.xhr.setRequestHeader('X-File-Type', this.file.type);
 
         if (this.options.chunked)
