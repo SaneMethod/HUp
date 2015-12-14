@@ -108,7 +108,7 @@ readAsArrayBuffer.
 *Note*: If using 'readAsDataURL', and reading the file in chunks, the file read *will* be properly aligned on the
  nearest 6 bits to enable this, however reassembling the resulting chunked dataURL is the responsibility of the
  using application. In order to simplify this, a convenience method, ```reassembleChunkedDataURL``` is available
- on the HUp instance. See [reassembleChunkedDataURL](#reassemblechunkeddataurl) for more details.
+ on the HUp instance. See [reassembleChunkedDataURL](#reassemblechunkeddataurlparts) for more details.
 
 ######type
 String
