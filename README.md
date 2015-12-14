@@ -236,17 +236,20 @@ This offers you access to all its functions, with the primary functions of inter
 
 #####pause(pauseList)
 @param {Array|number|string|boolean|undefined} pauseList
+
 Pause any in progress, chunked uploads/file reads. If pauseList is specified, elements should be either the names of
 the files or the index in which they were returned in the files list returned from the FILE_LIST_LOADED event.
 Can provide only a single string or number if only a single upload/read needs to be paused.
 
 #####resume(pauseList)
 @param {Array|number|string|boolean|undefined} pauseList
+
 Resume any in progress, paused, chunked uploads/file reads, following the same rules for pauseList as
 specified for pause.
 
 #####reassembleChunkedDataURL(parts)
 @param {Array|String} parts
+
 Convenience function for the reassembly of a file read in chunks as a data url, and returns a single
 dataURL base64 encoded string.
 
