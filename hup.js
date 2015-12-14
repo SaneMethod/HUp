@@ -252,7 +252,7 @@
     /**
      * Pause any in progress, chunked uploads/file reads. If pauseList is specified,
      * elements should be either the names of the files or the index in which they were returned in the files
-     * list returned from the FILE_LIST_LOADED event. Can provide only a single string or number of only a single
+     * list returned from the FILE_LIST_LOADED event. Can provide only a single string or number if only a single
      * upload/read needs to be paused.
      * @param {Array|number|string|boolean|undefined} pauseList
      */
@@ -292,6 +292,27 @@
                 fprocess.resume();
             }
         });
+    };
+
+    /**
+     * Convenience function for the reassembly of a file read in chunks as a data url, and returns a single
+     * dataURL base64 encoded string.
+     *
+     * Expects either an array containing all of the base64 strings to be used to reassemble the dataURL, in the
+     * correct order, or the strings can be specified as parameters, in the correct order for reassembly (that is,
+     * in the same order they were output by DeferReader).
+     * @param {Array|String} parts
+     * @returns {String}
+     */
+    Hup.prototype.reassembleChunkedDataURL = function(parts){
+        var dataURL;
+
+        if (arguments.length > 1) parts = Array.prototype.slice.call(arguments);
+        dataURL = parts[0];
+        for (var i=1, len=parts.length; i < len; i++){
+            dataURL += parts[i].split(',')[1];
+        }
+        return dataURL;
     };
 
     /**
@@ -504,7 +525,7 @@
         if (this.options.chunked)
         {
             this.start = 0;
-            this.end = Math.min(this.start+this.options.chunk_size, this.file.size);
+            this.end = this.calculateChunkEnd();
         }
 
         this.listen();
@@ -512,6 +533,23 @@
 
         return this;
     }
+
+    /**
+     * Calculate what the value of this.end should be when the file read is chunked, as special handling is needed
+     * when we're using the 'readAsDataURL' read_method to align reads on multiples of 6, as a result of how base64
+     * encoding works (that is, each character encodes 6 bits of information - if we fail to align the chunks with a
+     * multiple of 6, the base64 beyond the first chunk will end up represented in a way that cannot be trivially
+     * combined with the initial chunk).
+     */
+    DeferReader.prototype.calculateChunkEnd = function(){
+        var end = Math.min(this.start+this.options.chunk_size, this.file.size);
+
+        if (this.read_method === 'readAsDataURL' && end !== this.file.size){
+            end -= end % 6;
+        }
+        return end;
+    };
+
 
     /**
      * Read the entire file or a slice thereof, depending on the value of options.chunked and chunk_size.
@@ -568,7 +606,7 @@
         });
 
         this.start = this.end;
-        this.end = Math.min(this.start+this.options.chunk_size, this.file.size);
+        this.end = this.calculateChunkEnd();
 
         if (!this.paused)
         {

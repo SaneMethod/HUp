@@ -26,6 +26,9 @@ Usage:
 
 [Events](#events)
 
+[Functions](#functions)
+
+
 ###Simple Example:
 
 ```javascript
@@ -36,16 +39,16 @@ $('#element').hup({options}).on('events', function(event, data){});
 
 ```javascript
     accept:[], // A string or array of extensions or mime-types to accept for reading/uploading
-    async:true, // Whether to send files asynchronously
-    chunked:true, // Whether to send the file in chunks
-    chunk_size:1048576, // Size of each chunk (default 1024*1024)
-    input:'', // Input element
+    async:true, // Whether to send file(s) asynchronously
+    chunked:true, // Whether to send or read the file(s) in chunks
+    chunk_size:1048576, // Size of each chunk (default 1024*1024, 1 MiB)
+    input:'', // Input element - this is set automatically when using HUp in its jQuery plugin form.
     make_dnd:false, // Whether to make the input element handle drag and drop - auto-true if not file input
-    max_file_size:0, // Max file size - 0 means no max size
-    read_method:'readAsDataURL', // the read method to use for reading in the file - one of
-    // readAsText, readAsBinaryString, readAsDataURL or readAsArrayBuffer
+    max_file_size:0,// Max file size - 0 means no max size
+    read_method:'readAsArrayBuffer', // the read method to use for reading in the file(s) - one of
+                                     // readAsText, readAsBinaryString, readAsDataURL or readAsArrayBuffer
     type:'PUT', // Type of request to use for uploading
-    url:false // Url endpoint to send file to - if not specified or false, we read the file and return it
+    url:false // Url endpoint to send file to - if not specified or false, we read and return the file(s)
 ```
 
 ######accept
@@ -101,6 +104,11 @@ String
 
 The read method to use for reading in the file - one of readAsText, readAsBinaryString, readAsDataURL or
 readAsArrayBuffer.
+
+*Note*: If using 'readAsDataURL', and reading the file in chunks, the file read *will* be properly aligned on the
+ nearest 6 bits to enable this, however reassembling the resulting chunked dataURL is the responsibility of the
+ using application. In order to simplify this, a convenience method, ```reassembleChunkedDataURL``` is available
+ on the HUp instance. See [reassembleChunkedDataURL](#reassemblechunkeddataurl) for more details.
 
 ######type
 String
@@ -214,3 +222,34 @@ read_result:(String||DataURL||ArrayBuffer)
 ```javascript
 {state:String, files:Number /*(number of files uploaded)*/}
 ```
+
+###Functions:
+
+The HUp object, which wraps and controls the various file processors, can be retrieved from any Node it has been
+initialized on. For example:
+
+```javascript
+var hupInstance = $('#--name of your element--').data('hup');
+```
+
+This offers you access to all its functions, with the primary functions of interest being:
+
+#####pause(pauseList)
+@param {Array|number|string|boolean|undefined} pauseList
+Pause any in progress, chunked uploads/file reads. If pauseList is specified, elements should be either the names of
+the files or the index in which they were returned in the files list returned from the FILE_LIST_LOADED event.
+Can provide only a single string or number if only a single upload/read needs to be paused.
+
+#####resume(pauseList)
+@param {Array|number|string|boolean|undefined} pauseList
+Resume any in progress, paused, chunked uploads/file reads, following the same rules for pauseList as
+specified for pause.
+
+#####reassembleChunkedDataURL(parts)
+@param {Array|String} parts
+Convenience function for the reassembly of a file read in chunks as a data url, and returns a single
+dataURL base64 encoded string.
+
+Expects either an array containing all of the base64 strings to be used to reassemble the dataURL, in the
+correct order, or the strings can be specified as parameters, in the correct order for reassembly (that is,
+in the same order they were output).
